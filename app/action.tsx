@@ -1,15 +1,25 @@
 "use server";
 
-import AnimeCard, { AnimeProp } from "@/components/AnimeCard";
+import { normalizeAnime, type Anime } from "@/app/anime";
 
-export const fetchAnime = async (page: number) => {
+const PAGE_SIZE = 8;
+
+export const fetchAnime = async (page: number): Promise<Anime[]> => {
   const response = await fetch(
-    `https://shikimori.one/api/animes?page=${page}&limit=8&order=popularity`,
+    `https://shikimori.one/api/animes?page=${page}&limit=${PAGE_SIZE}&order=popularity`,
+    { next: { revalidate: 3600 } },
   );
 
-  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(`Anime catalog request failed (${response.status})`);
+  }
 
-  return data.map((item: AnimeProp, index: number) => (
-    <AnimeCard key={item.id} anime={item} index={index} />
-  ));
+  const records: unknown = await response.json();
+  if (!Array.isArray(records)) {
+    throw new Error("Anime catalog returned an invalid response");
+  }
+
+  return records
+    .map((record) => normalizeAnime(record))
+    .filter((anime): anime is Anime => anime !== null);
 };
